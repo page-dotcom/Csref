@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-    // 1. Setup CORS agar Blogger diizinkan mengirim data analitik ke API ini
+    // 1. Aturan CORS (Agar bisa menerima data dari Blogger)
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -9,23 +9,22 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    // 2. Ambil kunci rahasia dari brankas Vercel
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
-        return res.status(500).json({ error: "Server misconfiguration: Missing credentials" });
+        return res.status(500).json({ error: "Server belum disetting." });
     }
 
-    // 3. Tangkap data pengunjung secara otomatis dari sistem Vercel
+    // 2. Tangkap semua data pengunjung (termasuk Lokasi Vercel)
     const ipAddress = req.headers['x-forwarded-for'] || 'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
-    
-    // Tangkap URL halaman Blogger dan Referrer yang dikirim dari script frontend
     const url = req.query.url || 'unknown';
     const referrer = req.query.referrer || 'direct';
+    const countryCode = req.headers['x-vercel-ip-country'] || 'Unknown';
+    const city = req.headers['x-vercel-ip-city'] || 'Unknown';
 
-    // 4. Kirim data ke database Supabase menggunakan native Fetch API
+    // 3. Simpan ke Supabase
     try {
         const response = await fetch(`${supabaseUrl}/rest/v1/analytics`, {
             method: 'POST',
@@ -39,17 +38,16 @@ export default async function handler(req, res) {
                 url: url,
                 ip_address: ipAddress,
                 user_agent: userAgent,
-                referrer: referrer
+                referrer: referrer,
+                country_code: countryCode,
+                city: city
             })
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText);
-        }
+        if (!response.ok) throw new Error("Gagal menyimpan ke database");
 
-        return res.status(200).json({ success: true, message: "Analytics recorded" });
+        return res.status(200).json({ success: true, message: "Data terekam." });
     } catch (error) {
-        return res.status(500).json({ error: "Failed to process analytics" });
+        return res.status(500).json({ error: "Gagal memproses analitik." });
     }
 }
